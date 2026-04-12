@@ -2,7 +2,7 @@ from .Config import Config
 
 from moviepy.editor import *
 from moviepy.editor import VideoFileClip, AudioFileClip
-from pytube import YouTube
+import yt_dlp
 import time, os
 
 class Video:
@@ -58,49 +58,18 @@ class Video:
 
     def get_youtube_video(self, max_res=True):
         url = self.source_ref
-        streams = YouTube(url).streams.filter(progressive=True)
-        valid_streams = sorted(streams, reverse=True, key=lambda x: x.resolution is not None)
-        filtered_streams = sorted(valid_streams, reverse=True, key=lambda x: int(x.resolution.split("p")[0]))
-        if filtered_streams:
-            selected_stream = filtered_streams[0]
-            print("Starting Download for Video...")
-            selected_stream.download(output_path=os.path.join(os.getcwd(), Config.get().videos_dir), filename="pre-processed.mp4")
-            filename = os.path.join(os.getcwd(), Config.get().videos_dir, "pre-processed"+".mp4")
-            return filename
-
-
-        video = YouTube(url).streams.filter(file_extension="mp4", adaptive=True).first()
-        audio = YouTube(url).streams.filter(file_extension="webm", only_audio=True, adaptive=True).first()
-        if video and audio:
-            random_filename = str(int(time.time()))  # extension is added automatically.
-            video_path = os.path.join(os.getcwd(), Config.get().videos_dir, "pre-processed.mp4")
-            resolution = int(video.resolution[:-1])
-            # print(resolution)
-            if resolution >= 360:
-                downloaded_v_path = video.download(output_path=os.path.join(os.getcwd(), self.config.videos_dir), filename=random_filename)
-                print("Downloaded Video File @ " + video.resolution)
-                downloaded_a_path = audio.download(output_path=os.path.join(os.getcwd(), self.config.videos_dir), filename="a" + random_filename)
-                print("Downloaded Audio File")
-                file_check_iter = 0
-                while not os.path.exists(downloaded_a_path) and os.path.exists(downloaded_v_path):
-                    time.sleep(2**file_check_iter)
-                    file_check_iter = +1
-                    if file_check_iter > 3:
-                        print("Error saving these files to directory, please try again")
-                        return
-                    print("Waiting for files to appear.")
-
-                composite_video = VideoFileClip(downloaded_v_path).set_audio(AudioFileClip(downloaded_a_path))
-                composite_video.write_videofile(video_path)
-                # Deleting raw video and audio files.
-                # os.remove(downloaded_a_path)
-                # os.remove(downloaded_v_path)
-                return video_path
-            else:
-                print("All videos have are too low of quality.")
-                return
-        print("No videos available with both audio and video available...")
-        return False
+        output_path = os.path.join(os.getcwd(), Config.get().videos_dir, "pre-processed.mp4")
+        ydl_opts = {
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "outtmpl": output_path,
+            "merge_output_format": "mp4",
+            "quiet": False,
+            "no_warnings": False,
+        }
+        print("Starting Download for Video...")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        return output_path
 
     _YT_DOMAINS = [
         "http://youtu.be/", "https://youtu.be/", "http://youtube.com/", "https://youtube.com/",

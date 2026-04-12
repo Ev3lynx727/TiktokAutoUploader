@@ -1,10 +1,23 @@
 from .cookies import load_cookies_from_file, save_cookies_to_file
 from fake_useragent import UserAgent, FakeUserAgentError
 import undetected_chromedriver as uc
-import threading, os
+import subprocess, threading, os
 
 
 WITH_PROXIES = False
+
+
+def _get_chrome_major_version() -> int:
+    """Detect the major version of the system-installed Chrome/Chromium so
+    undetected-chromedriver downloads the matching ChromeDriver binary."""
+    for binary in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+        try:
+            out = subprocess.check_output([binary, "--version"], stderr=subprocess.DEVNULL).decode()
+            return int(out.strip().split()[-1].split(".")[0])
+        except (FileNotFoundError, ValueError, IndexError):
+            continue
+    return 0  # fall back to latest if detection fails
+
 
 class Browser:
     __instance = None
@@ -29,7 +42,7 @@ class Browser:
         # Proxies not supported on login.
         # if WITH_PROXIES:
         #     options.add_argument('--proxy-server={}'.format(PROXIES[0]))
-        self._driver = uc.Chrome(options=options)
+        self._driver = uc.Chrome(options=options, version_main=_get_chrome_major_version())
         self.with_random_user_agent()
 
     def with_random_user_agent(self, fallback=None):

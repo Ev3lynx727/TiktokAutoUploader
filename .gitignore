@@ -130,17 +130,22 @@ dmypy.json
 
 # Personal Development Files
 CookiesDir/
-CookiesDir/*
 VideosDirPath/
 *.cookie
 output/
 *.mp4
 youtube_downloader.py
 
+# Environment
+.env
 
+# Node
 node_modules/
 
-tests/*
-.idea/*
+# IDE
+.idea/
+.vscode/
 
-tiktok_uploader\tiktok-signature\command.txt
+# Misc
+tests/
+tiktok_uploader/tiktok-signature/command.txt

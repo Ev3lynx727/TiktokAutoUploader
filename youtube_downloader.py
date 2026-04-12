@@ -1,5 +1,8 @@
 from bs4 import BeautifulSoup
-from requests_html import HTMLSession, AsyncHTMLSession
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+import time
 from pytube import YouTube
 import uuid
 
@@ -7,15 +10,19 @@ YOUTUBE_BASE_URL = "https://www.youtube.com"
 VIDEO_BANK_URL = "https://www.youtube.com/source/NPdgPZ0u3zQ/shorts?bp=8gUeChwSGgoLTlBkZ1BaMHUzelESC05QZGdQWjB1M3pR"  # OVER 1 MILLION YT SHORTS.
 
 # Get captions and anchor url tags of each video, to then be downloaded, the first 10k videos will be downloaded. As well as thier caption, in a seperate txt file.
-sess = HTMLSession()
-asess = AsyncHTMLSession()
+chrome_options = Options()
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument(
+    "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+)
 
-sess.headers = {
-	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-}
-r = sess.get(VIDEO_BANK_URL)
-r.html.render(retries=5, sleep=2)
-soup = BeautifulSoup(r.html.html, 'html.parser')
+driver = webdriver.Chrome(options=chrome_options)
+driver.get(VIDEO_BANK_URL)
+time.sleep(2)
+soup = BeautifulSoup(driver.page_source, 'html.parser')
+driver.quit()
 
 # a.ShortsLockupViewModelHostEndpoint  obtain href
 # h3.ShortsLockupViewModelHostMetadataTitle  get aria-label and take all title.
