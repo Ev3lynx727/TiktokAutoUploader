@@ -16,6 +16,43 @@ load_dotenv()
 _UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36'
 
 
+REQUIRED_SESSION_COOKIE_NAMES = ("sessionid", "tt-target-idc")
+
+
+def wait_for_session_cookies(driver, poll_interval: float = 1.0, timeout: float = None):
+	"""Poll a Selenium driver until both `sessionid` and `tt-target-idc` cookies
+	are present, then return them as a list of cookie dicts.
+
+	Shared by both the CLI login flow (Browser.get().driver) and the noVNC
+	control server, which drives an undetected-chromedriver inside a container.
+
+	Args:
+		driver: Selenium WebDriver with an active TikTok page loaded.
+		poll_interval: seconds between cookie checks.
+		timeout: seconds to wait before giving up. None = wait forever.
+
+	Returns:
+		List of cookie dicts — always contains the sessionid cookie first.
+
+	Raises:
+		TimeoutError: if cookies don't appear within `timeout` seconds.
+	"""
+	start = time.monotonic()
+	collected = {}
+	while True:
+		for cookie in driver.get_cookies():
+			if cookie["name"] in REQUIRED_SESSION_COOKIE_NAMES:
+				collected[cookie["name"]] = cookie
+		if "sessionid" in collected and "tt-target-idc" in collected:
+			# sessionid first for consumer convenience
+			return [collected["sessionid"], collected["tt-target-idc"]]
+		if timeout is not None and (time.monotonic() - start) > timeout:
+			raise TimeoutError(
+				f"Timed out after {timeout}s waiting for TikTok session cookies"
+			)
+		time.sleep(poll_interval)
+
+
 def login(login_name: str):
 	# Check if login name is already save in file.
 	cookies = load_cookies_from_file(f"tiktok_session-{login_name}")
@@ -27,22 +64,16 @@ def login(login_name: str):
 		return session_cookie["value"]
 
 	browser = Browser.get()
-	response = browser.driver.get(os.getenv("TIKTOK_LOGIN_URL"))
+	browser.driver.get(os.getenv("TIKTOK_LOGIN_URL"))
 
-	session_cookies = []
-	while not session_cookies:
-		for cookie in browser.driver.get_cookies():
-			if cookie["name"] in ["sessionid", "tt-target-idc"]:
-				if cookie["name"] == "sessionid":
-					cookie_name = cookie
-				session_cookies.append(cookie)
+	session_cookies = wait_for_session_cookies(browser.driver)
+	session_cookie = next(c for c in session_cookies if c["name"] == "sessionid")
 
-	# print("Session cookie found: ", session_cookie["value"])
 	print("Account successfully saved.")
 	browser.save_cookies(f"tiktok_session-{login_name}", session_cookies)
 	browser.driver.quit()
 
-	return cookie_name.get('value', '') if cookie_name else ''
+	return session_cookie.get("value", "")
 
 
 # Local Code...
@@ -291,7 +322,7 @@ def upload_video(session_user, video, title, schedule_time=0, allow_comment=1, a
 		mstoken = session.cookies.get("msToken")
 		# xbogus = subprocess_jsvmp(os.path.join(os.getcwd(), "tiktok_uploader", "./x-bogus.js"), user_agent, f"app_name=tiktok_web&channel=tiktok_web&device_platform=web&aid=1988&msToken={mstoken}")
 		# /tiktok/web/project/post/v1/
-		js_path = os.path.join(os.getcwd(), "tiktok_uploader", "tiktok-signature", "browser.js")
+		js_path = os.path.join(os.path.dirname(__file__), "tiktok-signature", "browser.js")
 		sig_url = f"https://www.tiktok.com/api/v1/web/project/post/?app_name=tiktok_web&channel=tiktok_web&device_platform=web&aid=1988&msToken={mstoken}"
 		signatures = subprocess_jsvmp(js_path, user_agent, sig_url)
 		if signatures is None:
@@ -378,7 +409,14 @@ def upload_to_tiktok(video_file, session):
 		aws_secret_access_key=r.json()["video_token_v5"]["secret_acess_key"],
 		aws_session_token=r.json()["video_token_v5"]["session_token"],
 	)
-	with open(os.path.join(os.getcwd(), Config.get().videos_dir, video_file), "rb") as f:
+	# Accept either an absolute/existing path OR a filename relative to the
+	# configured videos_dir. The API passes absolute paths for uploads that
+	# weren't first dropped into VideosDirPath/.
+	if os.path.isabs(video_file) and os.path.exists(video_file):
+		video_path = video_file
+	else:
+		video_path = os.path.join(os.getcwd(), Config.get().videos_dir, video_file)
+	with open(video_path, "rb") as f:
 		video_content = f.read()
 	file_size = len(video_content)
 	url = f"https://www.tiktok.com/top/v1?Action=ApplyUploadInner&Version=2020-11-19&SpaceName=tiktok&FileType=video&IsInner=1&FileSize={file_size}&s=g158iqx8434"
@@ -433,7 +471,7 @@ if __name__ == "__main__":
 	# xbogus = subprocess_jsvmp(path, user_agent, url)
 	# print(xbogus)
 
-	path = os.path.join(os.getcwd(), "tiktok-signature", "browser.js")
+	path = os.path.join(os.path.dirname(__file__), "tiktok-signature", "browser.js")
 	proc = subprocess.Popen(['node', path , base_url+url, "agent123"], stdout=subprocess.PIPE)
 	output = proc.stdout.read().decode('utf-8')
 	json_output = json.loads(output)["data"]
