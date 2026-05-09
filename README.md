@@ -288,7 +288,7 @@ Available for purchase, if interested please email me at `michaelperes562@gmail.
   <img src="termius-logo-1084-black.png" alt="Termius" width="300">
 </a>
 
-Termius provides a secure, reliable, and collaborative SSH client.
+<a href="https://termius.com/">Termius</a> provides a secure, reliable, and collaborative SSH client.
 
 
 ### Support this project
